@@ -31,7 +31,6 @@ const NewChat = () => {
 
           // Connect to WebSocket for this session
           const accessToken = await AsyncStorage.getItem('accessToken');
-          // FIX: Use connectChat and joinSession
           await socketService.connectChat(senderId, accessToken);
           await socketService.joinSession(sessionId);
           router.push({ pathname: '/chat/chat-detail', params: { sessionId: sessionId.toString(), receiverId: receiverId.toString() } });

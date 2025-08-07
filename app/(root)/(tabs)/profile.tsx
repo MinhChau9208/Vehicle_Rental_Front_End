@@ -9,6 +9,7 @@ import { Portal, Dialog, Button, PaperProvider } from 'react-native-paper';
 import { showToast } from '@/components/ToastAlert';
 import { useAppContext } from '@/components/AppContext';
 
+
 interface UserData {
   avatar?: string;
   nickname: string;
@@ -61,7 +62,9 @@ const Profile = () => {
 
   const confirmLogout = async () => {
     try {
-      await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'pushNotificationsEnabled']);
+      const deviceId = await AsyncStorage.getItem('deviceId');
+      await authAPI.logout(deviceId);
+      await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
       setDialogVisible(false);
       router.replace('/(auth)/sign-in');
     } catch (err) {
@@ -142,7 +145,7 @@ const Profile = () => {
             <Text className="text-xs uppercase text-gray-500 font-RobotoMedium ml-3 mb-2">Vehicles</Text>
             <View className="bg-white rounded-xl shadow-md overflow-hidden">
               <TouchableOpacity
-                onPress={() => router.push('/user/my-vehicles')} // Simplified path
+                onPress={() => router.push('/user/my-vehicles')}
                 className="flex-row items-center p-4 border-b border-gray-100"
               >
                 <Ionicons name="car-outline" size={24} color="#2563EB" />
@@ -196,8 +199,8 @@ const Profile = () => {
                 <Text className="text-base text-gray-800 font-RobotoMedium ml-3">Email Notifications</Text>
                 <View className="flex-1" />
                 <Switch
-                  onValueChange={emailNotifications => setForm({ emailNotifications })}
-                  value={false} // Assuming 'mock' was a placeholder, setting to false for demo
+                  onValueChange={() => {}}
+                  value={false}
                   trackColor={{ false: "#E5E7EB", true: "#2563EB" }}
                   thumbColor={false ? "#F9FAFB" : "#FFFFFF"}
                 />

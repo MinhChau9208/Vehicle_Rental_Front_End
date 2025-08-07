@@ -333,10 +333,6 @@ const RentalConfirmation = () => {
             <Text className="text-base text-gray-700 font-RobotoRegular">Number of Days</Text>
             <Text className="text-base text-gray-800 font-RobotoMedium">{days} day{days > 1 ? 's' : ''}</Text>
           </View>
-          <View className="flex-row justify-between py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">App Fee</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">{appFee.toLocaleString()} đ</Text>
-          </View>
           {confirmationData && (
             <View className="flex-row justify-between py-2">
               <Text className="text-base text-gray-700 font-RobotoRegular">Deposit</Text>

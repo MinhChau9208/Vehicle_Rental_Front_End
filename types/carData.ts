@@ -7,7 +7,7 @@ export interface UserData {
 
 export interface VehicleData {
   isHidden: any;
-  id?: number;
+  id: number;
   userId?: any;
   title: string;
   brand: string;
@@ -63,3 +63,18 @@ export interface Contract {
   createdAt: string;
 }
 
+export interface PaginationData {
+  vehicles: VehicleData[];
+  total: number;
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface VehicleConstants {
+  vehicleType: string[];
+  carBrand: string[];
+  motorcycleBrand: string[];
+  color: string[];
+}

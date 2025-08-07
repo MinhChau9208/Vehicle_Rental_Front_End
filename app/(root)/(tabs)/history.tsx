@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { rentalAPI, vehicleAPI, authAPI } from '@/services/api';
 import { images } from '@/constants';
 import { router, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons'; // Import Ionicons for status icons
+import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '@/components/ToastAlert';
 
 interface Rental {
@@ -19,7 +19,7 @@ interface Rental {
   updatedAt: string;
   vehicle?: {
     imageFront: string;
-    title: string; // Added title for better display
+    title: string;
   };
 }
 
@@ -33,7 +33,7 @@ const History = () => {
 
   const fetchRentalsAndConstants = useCallback(async () => {
     try {
-      setLoading(true); // Set loading true on initial fetch and refresh
+      setLoading(true);
       const [userResponse, rentalsResponse, constantsResponse] = await Promise.all([
         authAPI.getUser(),
         rentalAPI.getAllRentals(),
@@ -55,12 +55,12 @@ const History = () => {
               return {
                 ...rental,
                 vehicle: {
-                  imageFront: vehicleResponse.data.data.imageFront || images.carPlaceholder, // Fallback image
+                  imageFront: vehicleResponse.data.data.imageFront || images.vinfast,
                   title: vehicleResponse.data.data.title,
                 },
               };
             }
-            return { ...rental, vehicle: { imageFront: images.carPlaceholder, title: 'Unknown Vehicle' } }; // Fallback for vehicle info
+            return { ...rental, vehicle: { imageFront: images.vinfast, title: 'Unknown Vehicle' } };
           })
         );
         setRentals(updatedRentals);
@@ -152,7 +152,7 @@ const History = () => {
 
   const handleRentalPress = (rentalId: number) => {
     router.push({
-      pathname: '/rental/rental-details', // Updated path to match previous change
+      pathname: '/rental/rental-details',
       params: { rentalId: rentalId.toString() },
     });
   };
@@ -206,10 +206,7 @@ const History = () => {
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
         <Text className="text-xl font-RobotoBold text-gray-900">Rental History</Text>
-        {/* Optional: Add a filter/sort icon here if needed */}
-        {/* <TouchableOpacity>
-          <Ionicons name="filter-outline" size={24} color="#000" />
-        </TouchableOpacity> */}
+        {/* Optional: Add a filter/sort icon here */}
       </View>
 
       <FlatList

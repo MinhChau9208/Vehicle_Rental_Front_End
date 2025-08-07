@@ -2,7 +2,7 @@ import { ImageSourcePropType } from 'react-native';
 
 export const images = {
   avatar: require('@/assets/images/avatar.png'),
-  vehicleSample: require('@/assets/images/car-vinfast.png'), // Placeholder for the uploaded image
+  vehicleSample: require('@/assets/images/vinfast.jpg'), // Placeholder for the uploaded image
 };
 
 export const mockLocation = {

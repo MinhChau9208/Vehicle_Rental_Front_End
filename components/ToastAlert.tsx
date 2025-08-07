@@ -88,7 +88,6 @@ const ToastAlert = () => {
   return <Toast config={toastConfig} />;
 };
 
-// MODIFIED: The function now accepts an optional onPress handler
 export const showToast = (
   type: 'success' | 'error' | 'info',
   text1: string,

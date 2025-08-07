@@ -39,6 +39,7 @@ import vf9 from "@/assets/images/vf9.jpg";
 import avatar from "@/assets/images/avatar.png";
 import bell from "@/assets/icons/bell.png";
 import add from "@/assets/icons/add.png";
+import mockmap from "@/assets/images/mockmap.png";
 
 export const images = {
     onboarding1,
@@ -54,6 +55,7 @@ export const images = {
     vinfast,
     vf9,
     avatar,
+    mockmap
 };
 
 export const icons = {

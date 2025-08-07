@@ -37,23 +37,24 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
       ],
-      // [
-      //   "react-native-maps",
-      //   {
-      //     "apiKey": "YOUR_GOOGLE_MAPS_API_KEY",
-      //     "mapsPackage": "react-native-maps"
-      //   }
-      // ],
       "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "cec633b9-5139-439f-91cc-6f82382e1e0f"
+      }
     }
   }
 }

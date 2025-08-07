@@ -18,8 +18,11 @@ import { chatAPI, authAPI } from '@/services/api';
 import { socketService } from '@/services/socketService';
 import { images } from '@/constants';
 import { showToast } from '@/components/ToastAlert';
-import { ChatMessage } from '@/types/chatData';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { ChatMessage, VehicleContent, RentalConfirmationContent } from '@/types/chatData';
+import VehicleChatCard from '@/components/vehicle/VehicleChatCard'; // Import new component
+import RentalConfirmationChatCard from '@/components/vehicle/RentalConfirmationChatCard';
+import { useAppContext } from '@/components/AppContext';
 
 interface UserInfo {
   nickname: string;
@@ -29,6 +32,7 @@ interface UserInfo {
 const ChatDetail = () => {
   const router = useRouter();
   const { sessionId, receiverId } = useLocalSearchParams();
+  const { setActiveChatSessionId } = useAppContext();
   const sessionIdNum = Number(sessionId);
   const receiverIdNum = Number(receiverId);
 
@@ -42,8 +46,17 @@ const ChatDetail = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isSending, setIsSending] = useState(false);
-  
+
   const isAiChat = receiverIdNum === 0;
+
+  useEffect(() => {
+    // Set the active session ID when the component mounts
+    setActiveChatSessionId(sessionIdNum);
+    // Clear the active session ID when the component unmounts
+    return () => {
+      setActiveChatSessionId(null);
+    };
+  }, [sessionIdNum, setActiveChatSessionId]);
 
   useEffect(() => {
     const initialize = async () => {
@@ -54,13 +67,9 @@ const ChatDetail = () => {
           setUserId(userResponse.data.data.id);
         }
 
-        if (isAiChat) {
-          setReceiverInfo({ nickname: 'AI Assistant', avatar: images.robot });
-        } else {
-          const receiverResponse = await authAPI.getUserPublicInfo(receiverIdNum);
-          if (receiverResponse.data?.status === 200 && receiverResponse.data?.data) {
-            setReceiverInfo(receiverResponse.data.data);
-          }
+        const receiverResponse = await authAPI.getUserPublicInfo(receiverIdNum);
+        if (receiverResponse.data?.status === 200 && receiverResponse.data?.data) {
+          setReceiverInfo(receiverResponse.data.data);
         }
       } catch (error) {
         console.error('Error initializing chat info:', error);
@@ -71,7 +80,7 @@ const ChatDetail = () => {
     };
     initialize();
   }, [receiverIdNum, isAiChat]);
-  
+
   useEffect(() => {
     if (!userId) return;
 
@@ -82,11 +91,11 @@ const ChatDetail = () => {
       if (data.sessionId === sessionIdNum) {
         // Prevent duplicates when loading more or receiving initial batch
         setMessages(prev => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const newMessages = data.messages.filter((m: ChatMessage) => !existingIds.has(m.id));
-            const combined = [...prev, ...newMessages];
-            // Sort all messages by date to ensure correct order
-            return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = data.messages.filter((m: ChatMessage) => !existingIds.has(m.id));
+          const combined = [...prev, ...newMessages];
+          // Sort all messages by date to ensure correct order
+          return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         });
         setCurrentPage(data.currentPage);
         setTotalPages(data.totalPages);
@@ -164,7 +173,38 @@ const ChatDetail = () => {
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isSent = item.senderId === userId;
-    const isImage = item.type === 'image';
+
+    const renderContent = () => {
+      switch (item.type) {
+        case 'image':
+          return <Image source={{ uri: item.content as string }} className="w-48 h-48 rounded-[14px]" />;
+        
+        case 'vehicle':
+          // The content for 'vehicle' is an array of vehicle objects
+          const vehicles = item.content as VehicleContent[];
+          return (
+            <View>
+              {vehicles.map((vehicle) => (
+                <VehicleChatCard key={vehicle.id} vehicle={vehicle} />
+              ))}
+            </View>
+          );
+
+        case 'rental-confirmation':
+          // The content is a single rental confirmation object
+          const rental = item.content as RentalConfirmationContent;
+          return <RentalConfirmationChatCard rental={rental} />;
+          
+        case 'text':
+        default:
+          return (
+            <Text className={`px-3 py-2 text-base ${isSent ? 'text-white' : 'text-black'}`}>
+              {item.content as string}
+            </Text>
+          );
+      }
+    };
+
     return (
       <View className={`flex-row items-end mb-4 mx-4 ${isSent ? 'justify-end' : 'justify-start'}`}>
         {!isSent && (
@@ -173,17 +213,21 @@ const ChatDetail = () => {
             className="w-8 h-8 rounded-full mr-2 self-start mt-1"
           />
         )}
-        <View className={`max-w-[75%] p-1 rounded-2xl ${isSent ? 'bg-blue-500' : 'bg-gray-200'}`}>
-          {isImage ? (
-            <Image source={{ uri: item.content }} className="w-48 h-48 rounded-[14px]" />
-          ) : (
-            <Text className={`px-3 py-2 text-base ${isSent ? 'text-white' : 'text-black'}`}>{item.content}</Text>
-          )}
+        {/*
+          The container now adapts its background based on content type.
+          No background for vehicle/rental cards, as they have their own styling.
+        */}
+        <View 
+          className={`max-w-[80%] p-1 rounded-2xl ${
+            item.type === 'text' ? (isSent ? 'bg-blue-500' : 'bg-gray-200') : ''
+          }`}
+        >
+          {renderContent()}
         </View>
       </View>
     );
   };
-  
+
   if (loading) {
     return <SafeAreaView className="flex-1 bg-white justify-center items-center"><ActivityIndicator size="large" color="#2563EB" /></SafeAreaView>;
   }
@@ -209,16 +253,16 @@ const ChatDetail = () => {
         keyExtractor={(item) => item.id.toString()}
         className="flex-1"
         onEndReached={loadMoreMessages}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={3}
         ListFooterComponent={
           isLoadingMore ? <ActivityIndicator size="small" color="#9CA3AF" className="my-4" /> : null
         }
       />
-      
+
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View className="p-2 bg-white border-t border-gray-200">
           {selectedImageUri && (
-             <View className="p-2 relative w-24 h-24">
+            <View className="p-2 relative w-24 h-24">
               <Image source={{ uri: selectedImageUri }} className="w-full h-full rounded-lg" />
               <TouchableOpacity
                 onPress={() => setSelectedImageUri(null)}

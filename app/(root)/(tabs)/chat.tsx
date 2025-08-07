@@ -44,11 +44,6 @@ const Chat = () => {
       {/* Header */}
       <View className="flex-row justify-between items-center px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
         <Text className="text-xl font-RobotoBold text-gray-900">Chats</Text>
-        {activeTab === 'messages' && (
-          <TouchableOpacity onPress={() => router.push('/chat/new-chat')} className="bg-[#2563EB] py-2 px-4 rounded-lg active:bg-[#1D4ED8]">
-            <Text className="text-white font-RobotoMedium">New Chat</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* NEW Tab Switcher - Style from my-vehicles.tsx */}

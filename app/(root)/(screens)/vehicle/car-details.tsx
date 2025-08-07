@@ -367,35 +367,19 @@ const CarDetails = () => {
 
         {/* Location Card */}
         <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
-          <Text className="text-lg font-RobotoBold text-gray-800 mb-3">Location</Text>
-          <Text className="text-sm text-gray-600 font-RobotoMedium mb-3">
-            {`${vehicle.address}, ${vehicle.ward}, ${vehicle.district}, ${vehicle.city}`}
+          <Text className="font-RobotoBold text-gray-800 mb-3">Location</Text>
+          <Text className="text-gray-600 font-RobotoMedium mb-3">
+            {` ${vehicle.ward}, ${vehicle.district}, ${vehicle.city}`}
           </Text>
-          {vehicle.latitude && vehicle.longitude && !isNaN(vehicle.latitude) && !isNaN(vehicle.longitude) ? (
-            <View style={{ borderRadius: 12, overflow: 'hidden', elevation: 2, height: 200 }}>
-              <MapView
-                style={{ width: '100%', height: '100%' }}
-                initialRegion={{
-                  latitude: vehicle.latitude,
-                  longitude: vehicle.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-              >
-                <Marker coordinate={{ latitude: vehicle.latitude, longitude: vehicle.longitude }} />
-              </MapView>
-            </View>
-          ) : (
-            <View style={{ borderRadius: 12, overflow: 'hidden', elevation: 2, height: 200 }}>r
-              <MapView style={{ width: '100%', height: '100%' }} region={mockLocation}>
-                <Marker
-                  coordinate={mockLocation}
-                  title={vehicle.title}
-                  description={`${vehicle.address}, ${vehicle.ward}, ${vehicle.district}, ${vehicle.city}`}
-                />
-              </MapView>
-            </View>
-          )}
+          <View style={{ borderRadius: 12, overflow: 'hidden', elevation: 2, height: 200 }}>
+            <MapView style={{ width: '100%', height: '100%' }} region={mockLocation}>
+              <Marker
+                coordinate={mockLocation}
+                title={vehicle.title}
+                description={`${vehicle.address}, ${vehicle.ward}, ${vehicle.district}, ${vehicle.city}`}
+              />
+            </MapView>
+          </View>
         </View>
 
         {/* Pickup and Return Times Card */}

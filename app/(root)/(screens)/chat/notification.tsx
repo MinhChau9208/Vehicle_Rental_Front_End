@@ -1,11 +1,11 @@
-// notification.tsx
-
 import React from 'react';
 import { Text, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppContext } from '@/components/AppContext';
+import { notificationAPI } from '@/services/api';
 import { router } from 'expo-router';
+import { showToast } from '@/components/ToastAlert';
 
 type ClientSideNotification = ReturnType<typeof useAppContext>['notifications'][0];
 
@@ -17,8 +17,6 @@ const Notification = () => {
   } = useAppContext();
 
   const renderNotification = ({ item }: { item: ClientSideNotification }) => {
-    // --- COMPLETED LOGIC STARTS HERE ---
-
     const isChat = item.event && 'sessionId' in item.event.data;
     const messageContent: string = item.event?.message || 'No message content';
 
@@ -43,9 +41,20 @@ const Notification = () => {
     const createdAt = item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A';
     
     // This handler will navigate to the correct screen based on the notification type
-    const handlePress = () => {
+    const handlePress = async () => {
       // Mark as read when pressed
-      markNotificationAsRead(item.id);
+      if (!item.isRead) {
+        markNotificationAsRead(item.id);
+        
+        // 2. Call the API to mark as read on the server.
+        try {
+          await notificationAPI.setAsRead(item.id);
+        } catch (error) {
+          console.error('Failed to mark notification as read on server:', error);
+          showToast('error', 'Could not sync read status with server.');
+          // Note: The UI will remain "read". No revert logic is implemented for simplicity.
+        }
+      }
 
       if (isChat) {
         router.push('/chat'); // Or router.push({ pathname: '/chat/chat-detail', params: { ... } });

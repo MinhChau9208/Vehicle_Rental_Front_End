@@ -87,11 +87,11 @@ const SignIn = () => {
       if (response.data?.status === 200 && response.data.accessToken) {
         await AsyncStorage.setItem('accessToken', response.data.accessToken);
         const accessToken = await AsyncStorage.getItem('accessToken');
-        console.log('access Token: ', response.data.accessToken);
         console.log('access Token from storage: ', accessToken);
         await AsyncStorage.setItem('refreshToken', response.data.refreshToken);
-        
-        console.log('refresh Token: ', response.data.refreshToken.toString());
+        console.log('refresh Token: ', response.data.refreshToken);
+        await AsyncStorage.setItem('deviceId', response.data.deviceId);
+        console.log('device Id: ', response.data.deviceId);
         await fetchUserAndConnect();
         router.replace('/(root)/(tabs)/home')
       } else {
@@ -119,6 +119,8 @@ const SignIn = () => {
         return 'Failed to login.';
       case 3001:
         return 'Email is not registered.';
+      case 1105:
+        return 'This user has been suspended';
       default:
         return 'Could not log you in. Please try again later!';
     }

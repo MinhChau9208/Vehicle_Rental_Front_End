@@ -68,10 +68,10 @@ const VehicleRegistration = () => {
     imagePic3: '',
     imagePic4: '',
     imagePic5: '',
-    timePickupStart: '06:00:00', // Set a default value
-    timePickupEnd: '23:00:00',   // Set a default value
-    timeReturnStart: '06:00:00', // Set a default value
-    timeReturnEnd: '23:00:00',   // Set a default value
+    timePickupStart: '06:00:00', 
+    timePickupEnd: '23:00:00',
+    timeReturnStart: '06:00:00',
+    timeReturnEnd: '23:00:00',
   });
 
   // State for image uploads

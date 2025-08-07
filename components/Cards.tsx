@@ -8,7 +8,7 @@ interface Props {
   vehicle: VehicleData
   user: UserData
   views?: number
-  rating?: number
+  rating: number | null
   isFavorite: boolean
   onFavoriteToggle: (vehicleId: number) => void
 }
@@ -18,13 +18,13 @@ const Cards = ({ onPress, vehicle, user, rating, isFavorite, onFavoriteToggle }:
       <View className="flex flex-row items-center absolute px-2 top-5 right-5 bg-white/90 p-1 rounded-full z-50">
         <Ionicons name="star" size={14} color={"#FFD900"} className="w-4 h-4" />
         <Text className="text-xs font-RobotoMedium text-primary-500 ml-0.5">
-          {rating !== 0 && rating !== null ? rating.toFixed(1) : 'N/A'}
+          {rating ? rating.toFixed(1) : 'N/A'}
         </Text>
       </View>
 
       <TouchableOpacity
         onPress={(e) => {
-          e.stopPropagation(); // Prevents the card's onPress from firing
+          e.stopPropagation();
           onFavoriteToggle(vehicle.id);
         }}
         className="absolute top-5 left-5 bg-white/90 p-1.5 rounded-full z-50"

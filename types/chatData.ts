@@ -1,27 +1,67 @@
-// chatData.ts
+export interface VehicleContent {
+  id: number;
+  userId: number;
+  title: string;
+  imageFront: string;
+  price: number;
+  // Add other vehicle properties if needed
+}
+
+// Represents the content of a rental confirmation message
+export interface RentalConfirmationContent {
+  vehicleId: number;
+  startDateTime: string;
+  endDateTime: string;
+  totalDays: number;
+  dailyPrice: number;
+  totalPrice: number;
+  depositPrice: number;
+  // Add any other relevant fields from the payload
+  // We'll also need vehicle details to navigate properly
+  vehicle?: {
+    title: string;
+    imageFront: string;
+  };
+  owner?: {
+    nickname: string;
+    avatar?: string;
+  };
+  rating?: number;
+}
+
+// Represents a chat message
 export interface ChatMessage {
-  id: string;
-  fromUserId: number;
-  toUserId: number;
-  message: string;
+  id: number;
+  senderId: number;
+  type: 'text' | 'image' | 'vehicle' | 'rental-confirmation';
+  content: string | VehicleContent[] | RentalConfirmationContent;
   createdAt: string;
+  senderName?: string;
+  senderAvatar?: string;
+}
+
+export interface ChatSessionData {
+  content: string | VehicleContent[] | RentalConfirmationContent;
+  createdAt: string;
+  type: 'text' | 'image' | 'vehicle' | 'rental-confirmation';
 }
 
 export interface ChatSession {
   sessionId: number;
-  data: {
-    senderId: number;
-    type: string;
-    content: string;
-    createdAt: string;
-    senderName: string;
-    senderAvatar: string;
-  } | null;
+  // data: {
+  //   senderId: number;
+  //   type: string;
+  //   content: string;
+  //   createdAt: string;
+  //   senderName: string;
+  //   senderAvatar: string;
+  // } | null;
   receivers: {
     receiverId: number;
     receiverName: string;
     receiverAvatar: string | null;
   }[];
+  data?: ChatSessionData
   total?: number;
   currentPage?: number;
   totalPages?: number;

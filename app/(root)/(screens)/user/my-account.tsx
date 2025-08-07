@@ -8,16 +8,10 @@ import { authAPI } from '@/services/api';
 import { images } from '@/constants';
 import { UserData } from '@/types/carData';
 import { showToast } from '@/components/ToastAlert';
-
-interface UserProfileData {
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  idCardNumber: string | null;
-  driverLicense: string | null;
-  status: string;
-  phoneNumber: string | null;
-}
+import { UserProfileData, SessionData } from '@/types/userData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SessionItem } from '@/components/ui/SessionItem';
+import { Button, Dialog, PaperProvider, Portal } from 'react-native-paper';
 
 const MyAccount = () => {
   const router = useRouter();
@@ -29,13 +23,25 @@ const MyAccount = () => {
   const [editedNickname, setEditedNickname] = useState('');
   const [editedAvatar, setEditedAvatar] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await authAPI.getUser();
-        const user = response.data.data;
-        if (response.data.status === 200) {
+        const deviceId = await AsyncStorage.getItem('deviceId');
+        setCurrentDeviceId(deviceId);
+        const [userResponse, sessionsResponse] = await Promise.all([
+          authAPI.getUser(),
+          authAPI.getRefreshTokens()
+        ]);
+
+        if (userResponse.data.status === 200) {
+          const user = userResponse.data.data;
           setUserData({
             id: String(user.id || 'unknown'),
             nickname: user.nickname || 'User',
@@ -54,10 +60,16 @@ const MyAccount = () => {
           setEditedNickname(user.nickname || '');
           setEditedAvatar(user.avatar || null);
           setPhoneNumber(user.phoneNumber || '');
-          setError(null);
+
         } else {
-          throw new Error(response.data.message || 'User data not found');
+          throw new Error(userResponse.data.message || 'User data not found');
         }
+        if (sessionsResponse.data.status === 200) {
+          setSessions(sessionsResponse.data.refreshTokens);
+        } else {
+          throw new Error(sessionsResponse.data.message || 'Could not load sessions');
+        }
+        setError(null);
       } catch (err: any) {
         console.error('Error fetching user:', err);
         setError(err.message === 'Session expired. Please sign in again.' ? err.message : 'Could not load user details');
@@ -66,6 +78,7 @@ const MyAccount = () => {
         }
       } finally {
         setLoading(false);
+        setSessionsLoading(false);
       }
     };
 
@@ -142,6 +155,27 @@ const MyAccount = () => {
     router.push('/user/update-to-level-2');
   };
 
+  const handleDeletePress = (deviceId: string) => {
+    setSessionToDelete(deviceId);
+    setDialogVisible(true);
+  };
+
+  // 2. When logout is confirmed, call the API and update the UI
+  const confirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    try {
+      await authAPI.logout(sessionToDelete);
+      setSessions(prevSessions => prevSessions.filter(s => s.deviceId !== sessionToDelete));
+      showToast('success', 'Session logged out successfully.');
+    } catch (error) {
+      console.error('Failed to log out session:', error);
+      showToast('error', 'Failed to log out session. Please try again.');
+    } finally {
+      setDialogVisible(false);
+      setSessionToDelete(null);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-gray-100 justify-center items-center">
@@ -167,125 +201,159 @@ const MyAccount = () => {
     .join(' ') || 'N/A';
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-100">
-      <StatusBar backgroundColor="#f3f4f6" barStyle="dark-content" />
-      {/* Header with back button */}
-      <View className="flex-row items-center px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
-        <TouchableOpacity onPress={() => router.back()} className="p-2">
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text className="text-xl font-RobotoBold ml-3 flex-1 text-center text-gray-900">My Account</Text>
-        <View className="w-10" /> {/* Placeholder for consistent spacing */}
-      </View>
-
-      <ScrollView className="flex-1">
-        {/* Profile Header Section */}
-        <View className="bg-white py-6 items-center border-b border-gray-200 shadow-sm">
-          <TouchableOpacity onPress={handleAvatarEdit} className="relative mb-3">
-            <Image
-              source={
-                editedAvatar
-                  ? { uri: editedAvatar }
-                  : userData.avatar
-                  ? { uri: userData.avatar }
-                  : images.avatar
-              }
-              className="w-28 h-28 rounded-full border-4 border-white shadow-md"
-              resizeMode="cover"
-            />
-            <View className="absolute bottom-0 right-0 bg-[#2563EB] rounded-full p-2 border-2 border-white">
-              <Feather name="edit-2" size={18} color="white" />
-            </View>
+    <PaperProvider>
+      <SafeAreaView className="flex-1 bg-gray-100">
+        <StatusBar backgroundColor="#f3f4f6" barStyle="dark-content" />
+        {/* Header with back button */}
+        <View className="flex-row items-center px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
+          <TouchableOpacity onPress={() => router.back()} className="p-2">
+            <Ionicons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
-          {isEditingNickname ? (
-            <View className="flex-row items-center bg-gray-100 rounded-lg px-3 py-2">
-              <TextInput
-                className="text-lg font-RobotoMedium text-gray-800 flex-1"
-                value={editedNickname}
-                onChangeText={setEditedNickname}
-                placeholder="Enter nickname"
-                autoFocus
+          <Text className="text-xl font-RobotoBold ml-3 flex-1 text-center text-gray-900">My Account</Text>
+          <View className="w-10" />
+        </View>
+
+        <ScrollView className="flex-1">
+          {/* Profile Header Section */}
+          <View className="bg-white py-6 items-center border-b border-gray-200 shadow-sm">
+            <TouchableOpacity onPress={handleAvatarEdit} className="relative mb-3">
+              <Image
+                source={
+                  editedAvatar
+                    ? { uri: editedAvatar }
+                    : userData.avatar
+                      ? { uri: userData.avatar }
+                      : images.avatar
+                }
+                className="w-28 h-28 rounded-full border-4 border-white shadow-md"
+                resizeMode="cover"
               />
-              <TouchableOpacity onPress={handleNicknameSave} className="ml-2 p-1">
-                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setIsEditingNickname(false)} className="ml-1 p-1">
-                <Ionicons name="close-circle" size={24} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View className="flex-row items-center">
-              <Text className="text-2xl font-RobotoBold text-gray-900">{userData.nickname}</Text>
-              <TouchableOpacity onPress={handleNicknameEdit} className="ml-2 p-1">
-                <Feather name="edit-3" size={20} color="#2563EB" />
-              </TouchableOpacity>
-            </View>
-          )}
-          <Text className="text-base text-gray-600 font-RobotoRegular mt-1">{profileData.email}</Text>
-        </View>
+              <View className="absolute bottom-0 right-0 bg-[#2563EB] rounded-full p-2 border-2 border-white">
+                <Feather name="edit-2" size={18} color="white" />
+              </View>
+            </TouchableOpacity>
+            {isEditingNickname ? (
+              <View className="flex-row items-center bg-gray-100 rounded-lg px-3 py-2">
+                <TextInput
+                  className="text-lg font-RobotoMedium text-gray-800 flex-1"
+                  value={editedNickname}
+                  onChangeText={setEditedNickname}
+                  placeholder="Enter nickname"
+                  autoFocus
+                />
+                <TouchableOpacity onPress={handleNicknameSave} className="ml-2 p-1">
+                  <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setIsEditingNickname(false)} className="ml-1 p-1">
+                  <Ionicons name="close-circle" size={24} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View className="flex-row items-center">
+                <Text className="text-2xl font-RobotoBold text-gray-900">{userData.nickname}</Text>
+                <TouchableOpacity onPress={handleNicknameEdit} className="ml-2 p-1">
+                  <Feather name="edit-3" size={20} color="#2563EB" />
+                </TouchableOpacity>
+              </View>
+            )}
+            <Text className="text-base text-gray-600 font-RobotoRegular mt-1">{profileData.email}</Text>
+          </View>
 
-        {/* Account Information Card */}
-        <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
-          <Text className="text-lg font-RobotoBold text-gray-800 mb-4">Account Information</Text>
-          <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">Email</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">{profileData.email}</Text>
-          </View>
-          <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">Full Name</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">{fullName}</Text>
-          </View>
-          <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">Phone Number</Text>
-            <View className="flex-row items-center">
-              <Text className="text-base text-gray-800 font-RobotoMedium mr-2">
-                {profileData.phoneNumber || 'N/A'}
+          {/* Account Information Card */}
+          <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+            <Text className="text-lg font-RobotoBold text-gray-800 mb-4">Account Information</Text>
+            <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+              <Text className="text-base text-gray-700 font-RobotoRegular">Email</Text>
+              <Text className="text-base text-gray-800 font-RobotoMedium">{profileData.email}</Text>
+            </View>
+            <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+              <Text className="text-base text-gray-700 font-RobotoRegular">Full Name</Text>
+              <Text className="text-base text-gray-800 font-RobotoMedium">{fullName}</Text>
+            </View>
+            <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+              <Text className="text-base text-gray-700 font-RobotoRegular">Phone Number</Text>
+              <View className="flex-row items-center">
+                <Text className="text-base text-gray-800 font-RobotoMedium mr-2">
+                  {profileData.phoneNumber || 'N/A'}
+                </Text>
+                <TouchableOpacity onPress={handlePhoneEdit}>
+                  <Feather name="edit-3" size={16} color="#2563EB" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+              <Text className="text-base text-gray-700 font-RobotoRegular">Nickname</Text>
+              <Text className="text-base text-gray-800 font-RobotoMedium">@{userData.nickname}</Text>
+            </View>
+            <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+              <Text className="text-base text-gray-700 font-RobotoRegular">Account Level</Text>
+              <Text className="text-base text-gray-800 font-RobotoMedium">Level {userData.level}</Text>
+            </View>
+            <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
+              <Text className="text-base text-gray-700 font-RobotoRegular">ID Card Number</Text>
+              <Text className="text-base text-gray-800 font-RobotoMedium">
+                {profileData.idCardNumber || 'N/A'}
               </Text>
-              <TouchableOpacity onPress={handlePhoneEdit}>
-                <Feather name="edit-3" size={16} color="#2563EB" />
-              </TouchableOpacity>
+            </View>
+            <View className="flex-row justify-between items-center py-2">
+              <Text className="text-base text-gray-700 font-RobotoRegular">Driver's License</Text>
+              <Text className="text-base text-gray-800 font-RobotoMedium">
+                {profileData.driverLicense || 'N/A'}
+              </Text>
             </View>
           </View>
-          <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">Nickname</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">@{userData.nickname}</Text>
-          </View>
-          <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">Account Level</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">Level {userData.level}</Text>
-          </View>
-          <View className="flex-row justify-between items-center py-2 border-b border-gray-100">
-            <Text className="text-base text-gray-700 font-RobotoRegular">ID Card Number</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">
-              {profileData.idCardNumber || 'N/A'}
-            </Text>
-          </View>
-          <View className="flex-row justify-between items-center py-2">
-            <Text className="text-base text-gray-700 font-RobotoRegular">Driver's License</Text>
-            <Text className="text-base text-gray-800 font-RobotoMedium">
-              {profileData.driverLicense || 'N/A'}
-            </Text>
-          </View>
-        </View>
 
-        {/* Update to Level 2 Button */}
-        <View className="mx-4 mt-4 mb-8">
-          <TouchableOpacity
-            className={`py-4 rounded-xl shadow-md ${userData.level && userData.level >= 2 ? 'bg-gray-300' : 'bg-[#2563EB] active:bg-[#1D4ED8]'}`}
-            onPress={handleUpdateToLevel2}
-            disabled={userData.level && userData.level >= 2}
-          >
-            <Text
-              className={`text-center font-RobotoBold text-lg ${
-                userData.level && userData.level >= 2 ? 'text-gray-600' : 'text-white'
-              }`}
+          {/* Active Sessions Card */}
+          <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
+            <Text className="text-lg font-RobotoBold text-gray-800 mb-4">Active Sessions</Text>
+            {sessionsLoading ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : (
+              sessions.map((session, index) => (
+                <View key={index} className={`py-3 ${index < sessions.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                  <SessionItem
+                    session={session}
+                    isCurrent={session.deviceId === currentDeviceId}
+                    onDelete={handleDeletePress}
+                  />
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Update to Level 2 Button */}
+          <View className="mx-4 mt-4 mb-8">
+            <TouchableOpacity
+              className={`py-4 rounded-xl shadow-md ${userData.level && userData.level >= 2 ? 'bg-gray-300' : 'bg-[#2563EB] active:bg-[#1D4ED8]'}`}
+              onPress={handleUpdateToLevel2}
+              disabled={userData.level && userData.level >= 2}
             >
-              {userData.level && userData.level >= 2 ? 'Account is Level 2' : 'Upgrade to Level 2'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+              <Text
+                className={`text-center font-RobotoBold text-lg ${userData.level && userData.level >= 2 ? 'text-gray-600' : 'text-white'}`}
+              >
+                {userData.level && userData.level >= 2 ? 'Account is Verified' : 'Verify Account'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Confirmation Dialog */}
+          <Portal>
+            <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)} style={{ borderRadius: 12 }}>
+              <Dialog.Title style={{ fontFamily: 'Roboto-Bold', fontSize: 20, color: '#1F2937' }}>Log Out Device</Dialog.Title>
+              <Dialog.Content>
+                <Text style={{ fontFamily: 'Roboto-Regular', fontSize: 16, color: '#4B5563' }}>
+                  Are you sure you want to log out this device? This action cannot be undone.
+                </Text>
+              </Dialog.Content>
+              <Dialog.Actions>
+                <Button onPress={() => setDialogVisible(false)} textColor='#6B7280' labelStyle={{ fontFamily: 'Roboto-Medium' }}>Cancel</Button>
+                <Button onPress={confirmDeleteSession} textColor="#EF4444" labelStyle={{ fontFamily: 'Roboto-Bold' }}>Log Out</Button>
+              </Dialog.Actions>
+            </Dialog>
+          </Portal>
+        </ScrollView>
+      </SafeAreaView>
+    </PaperProvider>
   );
 };
 

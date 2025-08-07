@@ -210,27 +210,27 @@ const RentalDetails = () => {
 
     const action = status ? 'approve' : 'reject';
     Alert.alert(
-        `Confirm ${action}`,
-        `Are you sure you want to ${action} this rental request?`,
-        [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Confirm',
-                onPress: async () => {
-                    try {
-                        const response = await rentalAPI.ownerRentalDecision(rental.id, status);
-                        if (response.data.status === 200) {
-                            showToast('success', `Rental ${action}ed successfully.`);
-                            router.back();
-                        } else {
-                            throw new Error(response.data.message || `Failed to ${action} rental`);
-                        }
-                    } catch (err: any) {
-                        showToast('error', err.message || `Could not ${action} rental`);
-                    }
-                },
-            },
-        ]
+      `Confirm ${action}`,
+      `Are you sure you want to ${action} this rental request?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              const response = await rentalAPI.ownerRentalDecision(rental.id, status);
+              if (response.data.status === 200) {
+                showToast('success', `Rental ${action}ed successfully.`);
+                router.back();
+              } else {
+                throw new Error(response.data.message || `Failed to ${action} rental`);
+              }
+            } catch (err: any) {
+              showToast('error', err.message || `Could not ${action} rental`);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -436,7 +436,7 @@ const RentalDetails = () => {
           </View>
         </View>
 
-        
+
 
         {/* Action Buttons */}
         <View className="mx-4 mt-4">
@@ -473,18 +473,18 @@ const RentalDetails = () => {
           )}
           {userRole === 'owner' && rental.status === 'OWNER PENDING' && (
             <View className="flex-row justify-between">
-                <TouchableOpacity
-                    onPress={() => handleOwnerDecision(true)}
-                    className="bg-green-500 py-3 rounded-xl flex-1 mr-2 shadow-md active:bg-green-600"
-                >
-                    <Text className="text-white font-RobotoBold text-center text-base">Approve Request</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={() => handleOwnerDecision(false)}
-                    className="bg-red-500 py-3 rounded-xl flex-1 ml-2 shadow-md active:bg-red-600"
-                >
-                    <Text className="text-white font-RobotoBold text-center text-base">Reject Request</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleOwnerDecision(true)}
+                className="bg-green-500 py-3 rounded-xl flex-1 mr-2 shadow-md active:bg-green-600"
+              >
+                <Text className="text-white font-RobotoBold text-center text-base">Approve Request</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleOwnerDecision(false)}
+                className="bg-red-500 py-3 rounded-xl flex-1 ml-2 shadow-md active:bg-red-600"
+              >
+                <Text className="text-white font-RobotoBold text-center text-base">Reject Request</Text>
+              </TouchableOpacity>
             </View>
           )}
           {userRole === 'owner' && rental.status === 'REMAINING PAYMENT PAID' && (
@@ -533,36 +533,28 @@ const RentalDetails = () => {
         {contracts.length > 0 && (
           <View className="mx-4 mt-4 bg-white rounded-xl p-4 shadow-md">
             <Text className="text-lg font-RobotoBold text-gray-800 mb-3">Contracts</Text>
-            <FlatList
-              data={contracts}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <View className="p-4 bg-gray-50 rounded-lg mb-3 border border-gray-200">
-                  <Text className="text-base font-RobotoBold text-gray-900">Contract ID: {item.id.substring(0, 8)}...</Text>
-                  <Text className="text-sm text-gray-700 mt-1">Rental ID: {item.rentalId}</Text>
-                  <Text className="text-sm text-gray-700">Contract Status: <Text className="font-RobotoMedium" style={{ color: getStatusColor(item.contractStatus) }}>{item.contractStatus}</Text></Text>
-                  <Text className="text-sm text-gray-700">Renter Status: <Text className="font-RobotoMedium" style={{ color: getStatusColor(item.renterStatus) }}>{item.renterStatus}</Text></Text>
-                  <Text className="text-sm text-gray-700">Owner Status: <Text className="font-RobotoMedium" style={{ color: getStatusColor(item.ownerStatus) }}>{item.ownerStatus}</Text></Text>
-                  <Text className="text-xs text-gray-500 mt-1">Created: {new Date(item.createdAt).toLocaleString()}</Text>
-                  {item.contractStatus === 'PENDING' && (
-                    <View className="flex-row mt-4 justify-end">
-                      <TouchableOpacity
-                        onPress={() => handleContractAction(item.id, 'sign')}
-                        className="bg-green-500 py-2 px-4 rounded-md mr-2 shadow-sm active:bg-green-600"
-                      >
-                        <Text className="text-white font-RobotoMedium">Sign</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleContractAction(item.id, 'reject')}
-                        className="bg-red-500 py-2 px-4 rounded-md shadow-sm active:bg-red-600"
-                      >
-                        <Text className="text-white font-RobotoMedium">Reject</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+            {contracts.map(item => (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => router.push({ pathname: '/rental/contract-details', params: { contractId: item.id } })}
+                className="p-4 bg-gray-50 rounded-lg mb-3 border border-gray-200 active:bg-gray-100"
+              >
+                <View className="flex-row justify-between items-center">
+                  <View className="flex-1">
+                    <Text className="text-base font-RobotoBold text-blue-600">Contract #{item.id.substring(item.id.length - 10)}</Text>
+                    <Text className="text-sm text-gray-600 mt-1">Status: <Text className="font-RobotoMedium" style={{ color: getStatusColor(item.contractStatus) }}>{item.contractStatus}</Text></Text>
+                    <Text className="text-xs text-gray-500 mt-2">Day Created: {new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={24} color="#6B7280" />
                 </View>
-              )}
-            />
+                {item.contractStatus === 'PENDING' && (
+                  <View className="flex-row mt-4 pt-3 border-t border-gray-200 justify-end">
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleContractAction(item.id, 'sign'); }} className="bg-green-500 py-2 px-4 rounded-md mr-2 shadow-sm"><Text className="text-white font-RobotoMedium">Sign</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleContractAction(item.id, 'reject'); }} className="bg-red-500 py-2 px-4 rounded-md shadow-sm"><Text className="text-white font-RobotoMedium">Reject</Text></TouchableOpacity>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </ScrollView>

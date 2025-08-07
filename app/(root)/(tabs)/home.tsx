@@ -10,27 +10,8 @@ import CustomDropdown from '@/components/CustomDropdown';
 import { vehicleAPI, authAPI } from '@/services/api';
 import { UserData, VehicleData } from '@/types/carData';
 import { showToast } from '@/components/ToastAlert';
-
-interface UserPublicInfo {
-  nickname: string;
-  avatar?: string;
-}
-
-interface PaginationData {
-  vehicles: VehicleData[];
-  total: number;
-  currentPage: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-}
-
-interface VehicleConstants {
-  vehicleType: string[];
-  carBrand: string[];
-  motorcycleBrand: string[];
-  color: string[];
-}
+import { PaginationData, VehicleConstants } from '@/types/carData';
+import FilterModal from '@/components/modal/FilterModal';
 
 const SearchInput = forwardRef(({ onSearch }, ref) => {
   const [searchText, setSearchText] = useState('');
@@ -77,7 +58,7 @@ const Home = () => {
   });
   const [models, setModels] = useState<string[]>([]);
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [userCache, setUserCache] = useState<Record<number, UserPublicInfo>>({});
+  const [userCache, setUserCache] = useState<Record<number, UserData>>({});
   const [ratings, setRatings] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -255,25 +236,50 @@ const Home = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchProvinces = async () => {
+  const fetchProvinces = async () => {
+    try {
+      const response = await vehicleAPI.getProvinces();
+      if (response.status === 200 && response.data?.data) {
+        const provinceData = response.data.data.map(([code, name]: [string, string]) => ({
+          label: name,
+          value: name,
+          code,
+        }));
+        setProvinces(provinceData);
+      } else {
+        showToast('error', 'Could not load cities.');
+      }
+    } catch (err) {
+      console.error('Error fetching provinces:', err);
+      showToast('error', 'Could not load cities.');
+    }
+  };
+
+  const fetchDistricts = async () => {
+    if (selectedProvinceCode) {
       try {
-        const response = await vehicleAPI.getProvinces();
+        const response = await vehicleAPI.getDistricts(selectedProvinceCode);
         if (response.status === 200 && response.data?.data) {
-          const provinceData = response.data.data.map(([code, name]: [string, string]) => ({
+          const districtData = response.data.data.map(([code, name]: [string, string]) => ({
             label: name,
             value: name,
             code,
           }));
-          setProvinces(provinceData);
+          setDistricts(districtData);
         } else {
-          showToast('error', 'Could not load cities.');
+          setDistricts([]);
+          showToast('error', 'Could not load districts.');
         }
       } catch (err) {
-        console.error('Error fetching provinces:', err);
-        showToast('error', 'Could not load cities.');
+        console.error('Error fetching districts:', err);
+        setDistricts([]);
+        showToast('error', 'Could not load districts.');
       }
-    };
+    } else {
+      setDistricts([]);
+    }
+  };
+  useEffect(() => {
     fetchUser();
     fetchVehicles();
     fetchConstants();
@@ -282,30 +288,6 @@ const Home = () => {
   }, [fetchVehicles, fetchConstants, fetchFavorites]);
 
   useEffect(() => {
-    const fetchDistricts = async () => {
-      if (selectedProvinceCode) {
-        try {
-          const response = await vehicleAPI.getDistricts(selectedProvinceCode);
-          if (response.status === 200 && response.data?.data) {
-            const districtData = response.data.data.map(([code, name]: [string, string]) => ({
-              label: name,
-              value: name,
-              code,
-            }));
-            setDistricts(districtData);
-          } else {
-            setDistricts([]);
-            showToast('error', 'Could not load districts.');
-          }
-        } catch (err) {
-          console.error('Error fetching districts:', err);
-          setDistricts([]);
-          showToast('error', 'Could not load districts.');
-        }
-      } else {
-        setDistricts([]);
-      }
-    };
     fetchDistricts();
   }, [selectedProvinceCode]);
 
@@ -343,12 +325,23 @@ const Home = () => {
     });
   };
 
+  const handleApplyFilters = () => {
+    const text = searchInputRef.current?.getSearchText() || '';
+    router.push({
+      pathname: '/(root)/(screens)/vehicle/car-listing',
+      params: {
+        title: text,
+        ...filters,
+      },
+    });
+    setShowFilterModal(false);
+  };
+
   const handleToggleFavorite = async (vehicleId: number) => {
     if (!vehicleId) return;
 
     const isCurrentlyFavorite = favoriteVehicles.has(vehicleId);
 
-    // Optimistically update the UI first for a better user experience
     const newFavorites = new Set(favoriteVehicles);
     if (isCurrentlyFavorite) {
       newFavorites.delete(vehicleId);
@@ -357,7 +350,6 @@ const Home = () => {
     }
     setFavoriteVehicles(newFavorites);
 
-    // Then, make the API call
     try {
       if (isCurrentlyFavorite) {
         await vehicleAPI.deleteFavoriteVehicle(vehicleId);
@@ -493,7 +485,7 @@ const Home = () => {
               id: item.userId.toString(),
               nickname: userCache[item.userId]?.nickname || 'Unknown User',
               avatar: userCache[item.userId]?.avatar || '',
-              level: 0,
+              level: userCache[item.userId]?.level || 1,
             }}
             rating={ratings[item.id] ?? null}
             views={filter === 'most_viewed_30_days' ? item.last30daysViews : item.totalViews}
@@ -532,7 +524,7 @@ const Home = () => {
           )
         }
       />
-      <Modal visible={showFilterModal} animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
+      {/* <Modal visible={showFilterModal} animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
         <SafeAreaView className="flex-1 bg-white">
           <View className="flex-row justify-between items-center p-4 border-b border-gray-200">
             <TouchableOpacity onPress={() => setShowFilterModal(false)}>
@@ -603,7 +595,15 @@ const Home = () => {
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </Modal> */}
+      <FilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onApply={handleApplyFilters}
+        showSearchTerm={false}
+      />
     </SafeAreaView>
   );
 };

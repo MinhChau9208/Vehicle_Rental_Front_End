@@ -1,39 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Text,
-  View,
-  TouchableOpacity,
-  Image,
-  FlatList,
-  ActivityIndicator,
-  RefreshControl,
-  Modal,
-  ScrollView,
-  TextInput,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { Text, View, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { vehicleAPI, authAPI } from '@/services/api';
 import { VehicleData, UserData } from '@/types/carData';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Cards from '@/components/Cards';
-
-interface PaginationData {
-  vehicles: VehicleData[];
-  total: number;
-  currentPage: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-}
-
-interface VehicleConstants {
-  vehicleType: string[];
-  carBrand: string[];
-  motorcycleBrand: string[];
-  color: string[];
-}
+import { showToast } from '@/components/ToastAlert';
+import { PaginationData } from '@/types/carData';
+import FilterModal from '@/components/modal/FilterModal';
 
 const CarListing = () => {
   const router = useRouter();
@@ -44,15 +19,18 @@ const CarListing = () => {
     model?: string;
     color?: string;
     city?: string;
+    district?: string;
     startDate?: string;
     endDate?: string;
   }>();
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
   const [userCache, setUserCache] = useState<Record<number, UserData>>({});
+  const [ratings, setRatings] = useState<Record<number, number>>({});
   const [pagination, setPagination] = useState<PaginationData>({
     vehicles: [],
     total: 0,
@@ -70,70 +48,17 @@ const CarListing = () => {
     color: params.color || '',
     year: '',
     city: params.city || '',
-    district: '',
+    district: params.district || '',
   });
-  const [constants, setConstants] = useState<VehicleConstants>({
-    vehicleType: ['car', 'motorcycle'],
-    carBrand: [],
-    motorcycleBrand: [],
-    color: [],
-  });
-  const [models, setModels] = useState<string[]>([]);
-
-  const fetchConstants = useCallback(async () => {
-    try {
-      const response = await vehicleAPI.getVehicleConstants();
-      if (response.status === 200 && response.data?.data) {
-        setConstants(response.data.data);
-      }
-    } catch (err) {
-      console.error('Error fetching constants:', err);
-    }
-  }, []);
-
-  const fetchModels = useCallback(async (vehicleType: string, brand: string) => {
-    if (!vehicleType || !brand) {
-      setModels([]);
-      return;
-    }
-    try {
-      const response = await vehicleAPI.getModelByBrand(vehicleType, brand);
-      if (response.status === 200 && response.data?.data) {
-        setModels(response.data.data);
-      } else {
-        setModels([]);
-      }
-    } catch (err: any) {
-      console.error('Error fetching models:', err);
-      setModels([]);
-      if (err.response?.data?.errorCode === 2001 || err.response?.data?.errorCode === 2002) {
-        setError('Invalid vehicle type or brand.');
-      }
-    }
-  }, []);
-
-  const formatDateDisplay = useCallback((dateStr: string) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const dayOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
-    return `${hours}:00 ${dayOfWeek} ${day}/${month}`;
-  }, []);
-
-  const getDateRangeDisplay = useCallback(() => {
-    if (params.startDate && params.endDate) {
-      return `${formatDateDisplay(params.startDate)} • ${formatDateDisplay(params.endDate)}`;
-    }
-    return '';
-  }, [params.startDate, params.endDate, formatDateDisplay]);
+  const [favoriteVehicles, setFavoriteVehicles] = useState<Set<number>>(new Set());
 
   const fetchVehicles = useCallback(
-    async (page: number = 1, limit: number = 10, isRefresh: boolean = false) => {
+    async (page: number = 1, limit: number = 10, isRefresh: boolean = false, append: boolean = false) => {
       try {
-        setLoading(!isRefresh);
+        if (append) setLoadingMore(true);
+        else setLoading(!isRefresh);
         if (isRefresh) setRefreshing(true);
+        
         const response = await vehicleAPI.getFilteredVehicles({
           page,
           limit,
@@ -151,7 +76,7 @@ const CarListing = () => {
             totalViews: item.totalViews || 0,
           }));
 
-          setVehicles(normalizedVehicles);
+          setVehicles((prev) => (append ? [...prev, ...normalizedVehicles] : normalizedVehicles));
           setPagination({
             vehicles: normalizedVehicles,
             total,
@@ -189,7 +114,22 @@ const CarListing = () => {
               }
             }
           });
-          await Promise.all(userPromises);
+
+          const ratingPromises = normalizedVehicles.map(async (vehicle) => {
+            if (vehicle.id === undefined) return;
+            try {
+              const ratingResponse = await vehicleAPI.getAverageRating(vehicle.id);
+              if (ratingResponse.status === 200 && ratingResponse.data?.data !== undefined) {
+                setRatings((prev) => ({ ...prev, [vehicle.id]: ratingResponse.data.data }));
+              } else {
+                setRatings((prev) => ({ ...prev, [vehicle.id]: 0 }));
+              }
+            } catch {
+              setRatings((prev) => ({ ...prev, [vehicle.id]: 0 }));
+            }
+          });
+
+          await Promise.all([...userPromises, ...ratingPromises]);
         } else {
           throw new Error('Could not load vehicles');
         }
@@ -205,11 +145,41 @@ const CarListing = () => {
         }
       } finally {
         setLoading(false);
+        setLoadingMore(false);
         if (isRefresh) setRefreshing(false);
       }
     },
     [filters, userCache]
   );
+
+  const handleToggleFavorite = async (vehicleId: number) => {
+    if (!vehicleId) return;
+
+    const isCurrentlyFavorite = favoriteVehicles.has(vehicleId);
+
+    const newFavorites = new Set(favoriteVehicles);
+    if (isCurrentlyFavorite) {
+      newFavorites.delete(vehicleId);
+    } else {
+      newFavorites.add(vehicleId);
+    }
+    setFavoriteVehicles(newFavorites);
+
+    try {
+      if (isCurrentlyFavorite) {
+        await vehicleAPI.deleteFavoriteVehicle(vehicleId);
+        showToast('success', 'Removed from favorites.');
+      } else {
+        await vehicleAPI.createFavoriteVehicle(vehicleId);
+        showToast('success', 'Added to favorites.');
+      }
+    } catch (err: any) {
+      setFavoriteVehicles(favoriteVehicles);
+      const errorMessage = err.response?.data?.message || 'An error occurred.';
+      showToast('error', errorMessage);
+      console.error('Error toggling favorite:', err);
+    }
+  };
 
   const onRefresh = useCallback(() => {
     setVehicles([]);
@@ -219,18 +189,13 @@ const CarListing = () => {
 
   useEffect(() => {
     fetchVehicles();
-    fetchConstants();
-  }, [fetchVehicles, fetchConstants]);
+  }, [fetchVehicles]);
 
-  useEffect(() => {
-    fetchModels(filters.vehicleType, filters.brand);
-  }, [filters.vehicleType, filters.brand, fetchModels]);
-
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= pagination.totalPages && !loading) {
-      fetchVehicles(page);
+  const loadMoreVehicles = useCallback(() => {
+    if (pagination.hasNextPage && !loading && !loadingMore) {
+      fetchVehicles(pagination.currentPage + 1, 10, false, true);
     }
-  };
+  }, [fetchVehicles, pagination.hasNextPage, pagination.currentPage, loading, loadingMore]);
 
   const applyFilters = () => {
     setVehicles([]);
@@ -239,29 +204,14 @@ const CarListing = () => {
     setShowFilterModal(false);
   };
 
-  const resetFilters = () => {
-    setFilters({
-      title: '',
-      vehicleType: 'car',
-      brand: '',
-      model: '',
-      color: '',
-      year: '',
-      city: '',
-      district: '',
-    });
-    setModels([]);
-  };
-
   const renderHeader = () => (
     <View className="bg-white">
-      <View className="flex-row items-center px-4 py-2">
+      <View className="flex-row items-center px-4 py-4">
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
         <View className="flex-1 ml-3">
-          <Text className="font-RobotoMedium text-base">{filters.city || 'TP. Hồ Chí Minh'}</Text>
-          <Text className="text-xs text-gray-500">{getDateRangeDisplay()}</Text>
+          <Text className="font-RobotoMedium">Available Vehicles: </Text>
         </View>
         <TouchableOpacity onPress={() => setShowFilterModal(true)}>
           <MaterialIcons name="filter-list" size={24} color="#2563EB" />
@@ -271,38 +221,8 @@ const CarListing = () => {
   );
 
   const renderFooter = () => (
-    <View className="py-4 px-4 flex-row items-center justify-between">
-      {loading ? (
-        <ActivityIndicator size="large" color="#2563EB" />
-      ) : (
-        <>
-          <TouchableOpacity
-            className={`py-3 px-6 rounded-md ${pagination.hasPreviousPage ? 'bg-[#2563EB]' : 'bg-gray-300'}`}
-            onPress={() => goToPage(pagination.currentPage - 1)}
-            disabled={!pagination.hasPreviousPage}
-          >
-            <Text
-              className={`font-RobotoMedium text-base ${pagination.hasPreviousPage ? 'text-white' : 'text-gray-500'}`}
-            >
-              Previous
-            </Text>
-          </TouchableOpacity>
-          <Text className="text-base font-RobotoMedium text-black">
-            Page {pagination.currentPage} of {pagination.totalPages}
-          </Text>
-          <TouchableOpacity
-            className={`py-3 px-6 rounded-md ${pagination.hasNextPage ? 'bg-[#2563EB]' : 'bg-gray-300'}`}
-            onPress={() => goToPage(pagination.currentPage + 1)}
-            disabled={!pagination.hasNextPage}
-          >
-            <Text
-              className={`font-RobotoMedium text-base ${pagination.hasPreviousPage ? 'text-white' : 'text-gray-500'}`}
-            >
-              Next
-            </Text>
-          </TouchableOpacity>
-        </>
-      )}
+    <View className="py-4 px-4">
+      {loadingMore ? <ActivityIndicator size="large" color="#2563EB" /> : null}
     </View>
   );
 
@@ -328,6 +248,9 @@ const CarListing = () => {
                 params: { id: item.id },
               })
             }
+            rating={ratings[item.id] ?? null}
+            isFavorite={favoriteVehicles.has(item.id)}
+            onFavoriteToggle={handleToggleFavorite}
           />
         )}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
@@ -342,6 +265,8 @@ const CarListing = () => {
             tintColor="#2563EB"
           />
         }
+        onEndReached={loadMoreVehicles}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           loading && pagination.currentPage === 1 ? (
             <ActivityIndicator size="large" color="#2563EB" />
@@ -350,129 +275,14 @@ const CarListing = () => {
           )
         }
       />
-      <Modal visible={showFilterModal} animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
-        <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row justify-between items-center p-4 border-b border-gray-200">
-            <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-              <Ionicons name="close" size={24} color="black" />
-            </TouchableOpacity>
-            <Text className="text-lg font-RobotoMedium">Filters</Text>
-            <TouchableOpacity onPress={resetFilters}>
-              <Text className="text-[#2563EB] font-RobotoMedium">Reset</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView className="p-4">
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">Title</Text>
-              <TextInput
-                className="border border-gray-300 rounded-md p-2 h-[50px]"
-                value={filters.title}
-                onChangeText={(text) => setFilters({ ...filters, title: text })}
-                placeholder="Enter vehicle title"
-              />
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">Vehicle Type</Text>
-              <View className="border border-gray-300 rounded-md">
-                <Picker
-                  selectedValue={filters.vehicleType}
-                  onValueChange={(value) => setFilters({ ...filters, vehicleType: value, brand: '', model: '' })}
-                  style={{ height: 50 }}
-                >
-                  {constants.vehicleType.map((type) => (
-                    <Picker.Item
-                      key={type}
-                      label={type.charAt(0).toUpperCase() + type.slice(1)}
-                      value={type}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">Brand</Text>
-              <View className="border border-gray-300 rounded-md">
-                <Picker
-                  selectedValue={filters.brand}
-                  onValueChange={(value) => setFilters({ ...filters, brand: value, model: '' })}
-                  style={{ height: 50 }}
-                  enabled={filters.vehicleType !== ''}
-                >
-                  <Picker.Item label="Select a brand" value="" />
-                  {(filters.vehicleType === 'car' ? constants.carBrand : constants.motorcycleBrand).map((brand) => (
-                    <Picker.Item key={brand} label={brand} value={brand} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">Model</Text>
-              <View className="border border-gray-300 rounded-md">
-                <Picker
-                  selectedValue={filters.model}
-                  onValueChange={(value) => setFilters({ ...filters, model: value })}
-                  style={{ height: 50 }}
-                  enabled={filters.brand !== ''}
-                >
-                  <Picker.Item label="Select a model" value="" />
-                  {models.map((model) => (
-                    <Picker.Item key={model} label={model} value={model} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">Color</Text>
-              <View className="border border-gray-300 rounded-md">
-                <Picker
-                  selectedValue={filters.color}
-                  onValueChange={(value) => setFilters({ ...filters, color: value })}
-                  style={{ height: 50 }}
-                >
-                  <Picker.Item label="Select a color" value="" />
-                  {constants.color.map((color) => (
-                    <Picker.Item key={color} label={color} value={color} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">Year</Text>
-              <TextInput
-                className="border border-gray-300 rounded-md p-2 h-[50px]"
-                value={filters.year}
-                onChangeText={(text) => setFilters({ ...filters, year: text })}
-                placeholder="Enter year (e.g., 2023)"
-                keyboardType="numeric"
-              />
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">City</Text>
-              <TextInput
-                className="border border-gray-300 rounded-md p-2 h-[50px]"
-                value={filters.city}
-                onChangeText={(text) => setFilters({ ...filters, city: text })}
-                placeholder="Enter city (e.g., TP. Hồ Chí Minh)"
-              />
-            </View>
-            <View className="mb-4">
-              <Text className="text-sm font-RobotoMedium text-gray-500 mb-1">District</Text>
-              <TextInput
-                className="border border-gray-300 rounded-md p-2 h-[50px]"
-                value={filters.district}
-                onChangeText={(text) => setFilters({ ...filters, district: text })}
-                placeholder="Enter district (e.g., Quận 1)"
-              />
-            </View>
-            <TouchableOpacity
-              className="bg-[#2563EB] py-3 rounded-md items-center mt-4"
-              onPress={applyFilters}
-            >
-              <Text className="text-white font-RobotoMedium text-base">Apply Filters</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      <FilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onApply={applyFilters}
+        showSearchTerm={true}
+      />
     </SafeAreaView>
   );
 };

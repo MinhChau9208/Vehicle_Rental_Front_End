@@ -64,12 +64,6 @@ apiClient.interceptors.response.use(
 // Authentication API
 export const authAPI = {
   login: async (email: string, password: string) => {
-    // const userAgent = await DeviceInfo.getUserAgent();
-    // , {
-    //   headers: {
-    //     'User-Agent': userAgent || 'ReactNativeApp/1.0',
-    //   },
-    // });
     return apiClient.post('/auth/login', { email, password });
   },
 
@@ -137,6 +131,12 @@ export const authAPI = {
 
   getUser: () =>
     apiClient.get('/user/get-user-info'),
+
+  getRefreshTokens: () => 
+    apiClient.get('/auth/refresh-tokens'),
+
+  logout: (deviceId: string) => 
+    apiClient.delete('/auth/logout', { data: { deviceId } }),
 
   getUserPublicInfo: (userId: number) =>
     apiClient.get(`/user/get-user-public-info?userId=${userId}`),
@@ -450,16 +450,19 @@ export const chatAPI = {
       });
     }
   },
-
-  sendMessageAI: (data: { sessionId: number; content: string }) => {
-    const formData = new FormData();
-    formData.append('sessionId', data.sessionId.toString());
-    formData.append('type', 'text');
-    formData.append('content', data.content);
-    return apiClient.post('/chat/send-message-ai', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+  
+  sendMessageAI: (data: { sessionId: number; content: string }) =>{
+    return apiClient.post('/chat/send-message-ai', {
+      sessionId: data.sessionId,
+      type: 'text',
+      content: data.content,
     });
-  },
+  }
+  
+};
+// Notification API
+export const notificationAPI = {
+  setAsRead: (id: number) => apiClient.post('/notification/set-as-read', { id }),
 };
 
 export default {
@@ -467,4 +470,5 @@ export default {
   vehicle: vehicleAPI,
   rental: rentalAPI,
   chat: chatAPI,
+  notification: notificationAPI,
 };
